@@ -148,7 +148,7 @@ const manualMarks = asyncHandler(async (req, res) => {
   if (!enrollmentNumber)
     return res.status(400).json({ success: false, message: 'enrollmentNumber is required' })
 
-  const faculty = await Faculty.findOne({ facultyId: req.user.enrollmentNumber })
+  const faculty = await Faculty.findOne({ facultyId: req.user.facultyId })
   if (!faculty) return res.status(404).json({ success: false, message: 'Faculty not found' })
 
   const student = await Student.findOne({ enrollmentNumber })

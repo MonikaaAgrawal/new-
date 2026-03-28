@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>API Proxy Test</title>
+  <style>
+    body { font-family: monospace; background: #0f172a; color: #e2e8f0; padding: 32px; }
+    h2 { color: #7c3aed; margin-bottom: 24px; }
+    .test { margin-bottom: 16px; padding: 14px 18px; border-radius: 10px; background: #1e293b; border: 1px solid #334155; }
+    .label { font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
+    .result { font-size: 14px; font-weight: bold; }
+    .ok   { color: #4ade80; }
+    .fail { color: #f87171; }
+    .pending { color: #fbbf24; }
+    pre { margin-top: 8px; font-size: 12px; color: #94a3b8; white-space: pre-wrap; word-break: break-all; }
+    button {
+      margin-top: 24px; padding: 12px 28px; border-radius: 10px;
+      background: #7c3aed; color: #fff; border: none; cursor: pointer;
+      font-size: 15px; font-weight: 700;
+    }
+    button:hover { background: #9d5cf5; }
+  </style>
+</head>
+<body>
+  <h2>🔍 AcadPlace — API Proxy Diagnostic</h2>
+  <p style="color:#94a3b8; margin-bottom:24px;">
+    Open this file at <strong style="color:#e2e8f0">http://localhost:5173/api-test.html</strong>
+    after placing it in <code>front-end/public/api-test.html</code>
+  </p>
+
+  <div class="test" id="test-health">
+    <div class="label">TEST 1 — Backend Health Check (GET /api/health)</div>
+    <div class="result pending" id="r1">⏳ Pending…</div>
+    <pre id="p1"></pre>
+  </div>
+
+  <div class="test" id="test-login-wrong">
+    <div class="label">TEST 2 — Login with WRONG password (should get 401, not 404)</div>
+    <div class="result pending" id="r2">⏳ Pending…</div>
+    <pre id="p2"></pre>
+  </div>
+
+  <div class="test" id="test-login-correct">
+    <div class="label">TEST 3 — Login with CORRECT credentials (admin@it.edu / admin123)</div>
+    <div class="result pending" id="r3">⏳ Pending…</div>
+    <pre id="p3"></pre>
+  </div>
+
+  <div class="test" id="test-login-faculty">
+    <div class="label">TEST 4 — Login as Faculty (roopam@it.edu / roopam123)</div>
+    <div class="result pending" id="r4">⏳ Pending…</div>
+    <pre id="p4"></pre>
+  </div>
+
+  <button onclick="runTests()">▶ Run All Tests</button>
+
+  <script>
+    async function runTests() {
+      // Reset
+      ['r1','r2','r3','r4'].forEach(id => {
+        document.getElementById(id).textContent = '⏳ Running…'
+        document.getElementById(id).className = 'result pending'
+      })
+      ;['p1','p2','p3','p4'].forEach(id => {
+        document.getElementById(id).textContent = ''
+      })
+
+      // Test 1 — Health
+      try {
+        const res = await fetch('/api/health')
+        const data = await res.json()
+        document.getElementById('r1').textContent = `✅ ${res.status} OK — Proxy is working!`
+        document.getElementById('r1').className = 'result ok'
+        document.getElementById('p1').textContent = JSON.stringify(data, null, 2)
+      } catch (e) {
+        document.getElementById('r1').textContent = `❌ FAILED — ${e.message}`
+        document.getElementById('r1').className = 'result fail'
+        document.getElementById('p1').textContent = 'Proxy is NOT working. Backend unreachable from frontend.'
+      }
+
+      // Test 2 — Wrong password
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'admin@it.edu', password: 'wrongpassword' })
+        })
+        const data = await res.json()
+        if (res.status === 401) {
+          document.getElementById('r2').textContent = `✅ ${res.status} — Got 401 (correct, proxy works)`
+          document.getElementById('r2').className = 'result ok'
+        } else if (res.status === 404) {
+          document.getElementById('r2').textContent = `❌ 404 — Route not found on backend`
+          document.getElementById('r2').className = 'result fail'
+        } else {
+          document.getElementById('r2').textContent = `⚠️ ${res.status} — Unexpected`
+          document.getElementById('r2').className = 'result pending'
+        }
+        document.getElementById('p2').textContent = JSON.stringify(data, null, 2)
+      } catch (e) {
+        document.getElementById('r2').textContent = `❌ FAILED — ${e.message}`
+        document.getElementById('r2').className = 'result fail'
+      }
+
+      // Test 3 — Correct admin login
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'admin@it.edu', password: 'admin123' })
+        })
+        const data = await res.json()
+        if (res.status === 200 && data.token) {
+          document.getElementById('r3').textContent = `✅ ${res.status} — Login SUCCESS! Token received.`
+          document.getElementById('r3').className = 'result ok'
+          document.getElementById('p3').textContent = `Role: ${data.user?.role}\nName: ${data.user?.name}\nToken: ${data.token?.slice(0,40)}…`
+        } else {
+          document.getElementById('r3').textContent = `❌ ${res.status} — Login FAILED`
+          document.getElementById('r3').className = 'result fail'
+          document.getElementById('p3').textContent = JSON.stringify(data, null, 2)
+        }
+      } catch (e) {
+        document.getElementById('r3').textContent = `❌ FAILED — ${e.message}`
+        document.getElementById('r3').className = 'result fail'
+        document.getElementById('p3').textContent = 'If this says "Failed to fetch" — proxy is broken.\nIf it says something else — backend has an error.'
+      }
+
+      // Test 4 — Faculty login
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'roopam@it.edu', password: 'roopam123' })
+        })
+        const data = await res.json()
+        if (res.status === 200 && data.token) {
+          document.getElementById('r4').textContent = `✅ ${res.status} — Faculty login SUCCESS!`
+          document.getElementById('r4').className = 'result ok'
+          document.getElementById('p4').textContent = `Role: ${data.user?.role}\nName: ${data.user?.name}`
+        } else {
+          document.getElementById('r4').textContent = `❌ ${res.status} — Faculty login FAILED`
+          document.getElementById('r4').className = 'result fail'
+          document.getElementById('p4').textContent = JSON.stringify(data, null, 2)
+        }
+      } catch (e) {
+        document.getElementById('r4').textContent = `❌ FAILED — ${e.message}`
+        document.getElementById('r4').className = 'result fail'
+      }
+    }
+
+    // Auto-run on load
+    window.onload = runTests
+  </script>
+</body>
+</html>
